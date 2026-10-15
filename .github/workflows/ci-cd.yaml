@@ -10,12 +10,11 @@ permissions:
   packages: write
 
 jobs:
-  # JOB 1: ndërto të dy imazhet me docker compose dhe i dërgon në GHCR
+  # JOB 1: ndërton të dy shërbimet me docker compose dhe i dërgon në GHCR
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -30,33 +29,45 @@ jobs:
       - name: Push images
         run: docker compose push
 
-  # JOB 2: deploy në VM-në e Azure (vetëm nëse job 1 kaloi)
+  # JOB 2: deploy në VM-në e Azure
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to VM
+      - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: docker-compose.yml
+          source: "docker-compose.vm.yml,nginx/vm.conf,frontend/index.html"
           target: nginx-proxy-lab
 
-      - name: Pull and restart on VM
+      - name: Install Nginx and start backends
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
+            set -e
             cd ~/nginx-proxy-lab
+
+            # 1) Nginx në VM
+            sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
+            sudo mkdir -p /var/www/frontend
+            sudo cp frontend/index.html /var/www/frontend/index.html
+            sudo cp nginx/vm.conf /etc/nginx/conf.d/app.conf
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t
+            sudo systemctl enable --now nginx
+            sudo systemctl reload nginx
+
+            # 2) Backend-et nga GHCR
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u eronsalih --password-stdin
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
-            docker compose ps
+            docker compose -f docker-compose.vm.yml pull
+            docker compose -f docker-compose.vm.yml up -d
+            docker compose -f docker-compose.vm.yml ps
