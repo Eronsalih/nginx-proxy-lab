@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="sq">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nginx Proxy Lab</title>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --a:#38bdf8; --b:#a78bfa; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+    h1 { margin: 0 0 4px; }
+    p.sub { color: var(--muted); margin-top: 0; }
+    .card { background: var(--card); border-radius: 12px; padding: 20px; margin-top: 20px; }
+    button { background: var(--a); color:#0f172a; border:0; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; }
+    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--muted); margin-left: 8px; }
+    .log { margin-top: 16px; display:flex; flex-direction:column; gap:8px; }
+    .row { display:flex; justify-content:space-between; padding:10px 14px; border-radius:8px; background:#0f172a; border-left:4px solid var(--muted); }
+    .row.backend1 { border-color: var(--a); }
+    .row.backend2 { border-color: var(--b); }
+    code { color: var(--a); }
+    .flow { font-family: ui-monospace, monospace; color: var(--muted); font-size: 14px; line-height: 1.7; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Nginx Proxy Lab</h1>
+  <p class="sub">Frontend (Nginx) &rarr; Reverse proxy &rarr; 2 backends (load balancer)</p>
+
+  <div class="card">
+    <p>Kliko butonin disa here. Cdo kerkese shkon te <code>/api/hello</code>.
+       Nginx zgjedh nje backend. Shiko si ndryshon <strong>served_by</strong>.</p>
+    <button id="send">Dergo 1 kerkese</button>
+    <button id="burst" class="ghost">Dergo 6 kerkesa</button>
+    <button id="clear" class="ghost">Pastro</button>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card flow">
+    Browser<br>
+    &nbsp;&darr; port 80<br>
+    Nginx (web server + reverse proxy + load balancer)<br>
+    &nbsp;&darr; <code>/</code> &rarr; kthen index.html (file statik)<br>
+    &nbsp;&darr; <code>/api/</code> &rarr; backend1 ose backend2 (round robin)
+  </div>
+</main>
+
+<script>
+  const log = document.getElementById("log");
+
+  async function sendOne() {
+    const row = document.createElement("div");
+    try {
+      const res = await fetch("/api/hello");
+      const data = await res.json();
+      row.className = "row " + data.served_by;
+      row.innerHTML = `<span>served_by: <strong>${data.served_by}</strong></span>
+                       <span>container: ${data.container_id}</span>`;
+    } catch (err) {
+      row.className = "row";
+      row.textContent = "Gabim: " + err.message + " (a ka rene backend-i?)";
+    }
+    log.prepend(row);
+  }
+
+  document.getElementById("send").onclick = sendOne;
+  document.getElementById("burst").onclick = async () => {
+    for (let i = 0; i < 6; i++) { await sendOne(); }
+  };
+  document.getElementById("clear").onclick = () => (log.innerHTML = "");
+</script>
+</body>
+</html>

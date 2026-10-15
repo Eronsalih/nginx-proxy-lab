@@ -1,0 +1,26 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    image: ghcr.io/eronsalih/nginx-proxy-lab-nginx:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - backend1
+      - backend2
+    restart: unless-stopped
+
+  backend1:
+    build: ./backend
+    image: ghcr.io/eronsalih/nginx-proxy-lab-backend:latest
+    environment:
+      BACKEND_NAME: backend1
+    restart: unless-stopped
+
+  backend2:
+    build: ./backend
+    image: ghcr.io/eronsalih/nginx-proxy-lab-backend:latest
+    environment:
+      BACKEND_NAME: backend2
+    restart: unless-stopped
